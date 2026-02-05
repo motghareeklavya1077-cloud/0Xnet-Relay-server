@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,28 +26,31 @@ import (
 )
 
 type RelayServer struct {
-	host      host.Host
-	ctx       context.Context
-	cancel    context.CancelFunc
-	startTime time.Time
+	host             host.Host
+	ctx              context.Context
+	cancel           context.CancelFunc
+	startTime        time.Time
 	mu               sync.RWMutex
 	totalConnections int64
 	peersConnected   map[peer.ID]time.Time
 }
 
 type Stats struct {
-	PeerID           string      `json:"peer_id"`
-	Uptime           string      `json:"uptime"`
-	UptimeSeconds    float64     `json:"uptime_seconds"`
-	ConnectedPeers   int         `json:"connected_peers"`
-	TotalConnections int64       `json:"total_connections"`
-	Addresses        []string    `json:"addresses"`
-	RelayAddresses   []string    `json:"relay_addresses"`
+	PeerID           string   `json:"peer_id"`
+	Uptime           string   `json:"uptime"`
+	UptimeSeconds    float64  `json:"uptime_seconds"`
+	ConnectedPeers   int      `json:"connected_peers"`
+	TotalConnections int64    `json:"total_connections"`
+	Addresses        []string `json:"addresses"`
+	RelayAddresses   []string `json:"relay_addresses"`
 }
 
 func main() {
 	port := os.Getenv("PORT")
-	if port == "" { port = "8080" }
+	if port == "" {
+		port = "8080"
+	}
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -126,9 +130,9 @@ func (s *RelayServer) GetStats() Stats {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	stats := Stats{
-		PeerID: s.host.ID().String(),
-		Uptime: time.Since(s.startTime).Round(time.Second).String(),
-		ConnectedPeers: len(s.peersConnected),
+		PeerID:           s.host.ID().String(),
+		Uptime:           time.Since(s.startTime).Round(time.Second).String(),
+		ConnectedPeers:   len(s.peersConnected),
 		TotalConnections: s.totalConnections,
 	}
 	for _, addr := range s.host.Addrs() {
