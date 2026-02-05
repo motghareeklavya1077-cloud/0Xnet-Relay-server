@@ -60,7 +60,9 @@ func main() {
 	}
 
 	go startHTTPServer(internalHttpPort, server)
-	printStartupInfo(server, internalHttpPort, renderPort)
+	
+	fmt.Println("🚀 0Xnet Relay Deployment Version")
+	fmt.Println("Peer ID:", server.host.ID())
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -90,12 +92,15 @@ func NewRelayServer(ctx context.Context, p2pPort string) (*RelayServer, error) {
 		libp2p.Identity(privKey),
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
 		libp2p.Security(noise.ID, noise.New),
+		// CRITICAL: Tells relay to ignore private IP detection and allow reservations
 		libp2p.ForceReachabilityPublic(),
+		// CRITICAL: Stops the relay from banning peers for multiple connection attempts
 		libp2p.ResourceManager(&network.NullResourceManager{}),
 		libp2p.EnableRelayService(
 			relay.WithResources(relay.Resources{
-				MaxReservations:        2048,
-				MaxReservationsPerPeer: 20,
+				MaxReservations:        1024,
+				MaxReservationsPerPeer: 50,
+				MaxReservationsPerIP:   50,
 				ReservationTTL:         time.Hour,
 			}),
 		),
@@ -144,7 +149,6 @@ func startHTTPServer(port string, server *RelayServer) {
 	mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(server.GetStats())
 	})
-
 	log.Printf("Internal HTTP stats running on :%s", port)
 	http.ListenAndServe(":"+port, mux)
 }
@@ -168,9 +172,4 @@ func (s *RelayServer) GetStats() Stats {
 func (s *RelayServer) Stop() error {
 	s.cancel()
 	return s.host.Close()
-}
-
-func printStartupInfo(server *RelayServer, httpPort, p2pPort string) {
-	fmt.Println("🚀 0Xnet Relay Deployment Version")
-	fmt.Println("Peer ID:", server.host.ID())
 }
