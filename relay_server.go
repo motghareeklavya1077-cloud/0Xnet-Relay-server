@@ -35,6 +35,15 @@ type RelayServer struct {
 	peersConnected   map[peer.ID]time.Time
 }
 
+type Stats struct {
+	PeerID           string   `json:"peer_id"`
+	Uptime           string   `json:"uptime"`
+	UptimeSeconds    float64  `json:"uptime_seconds"`
+	ConnectedPeers   int      `json:"connected_peers"`
+	TotalConnections int64    `json:"total_connections"`
+	RelayAddresses   []string `json:"relay_addresses"`
+}
+
 func main() {
 	renderPort := os.Getenv("PORT")
 	if renderPort == "" {
@@ -81,14 +90,12 @@ func NewRelayServer(ctx context.Context, p2pPort string) (*RelayServer, error) {
 		libp2p.Identity(privKey),
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
 		libp2p.Security(noise.ID, noise.New),
-		// FIX: Force public reachability so the relay doesn't hide
 		libp2p.ForceReachabilityPublic(),
-		// FIX: Disable strict resource limits for development
 		libp2p.ResourceManager(&network.NullResourceManager{}),
 		libp2p.EnableRelayService(
 			relay.WithResources(relay.Resources{
 				MaxReservations:        2048,
-				MaxReservationsPerPeer: 20, // Allow many restarts from same IP
+				MaxReservationsPerPeer: 20,
 				ReservationTTL:         time.Hour,
 			}),
 		),
@@ -125,33 +132,6 @@ func NewRelayServer(ctx context.Context, p2pPort string) (*RelayServer, error) {
 	return server, nil
 }
 
-	server := &RelayServer{
-		host:           h,
-		ctx:            ctx,
-		cancel:         cancel,
-		startTime:      time.Now(),
-		peersConnected: make(map[peer.ID]time.Time),
-	}
-
-	h.Network().Notify(&network.NotifyBundle{
-		ConnectedF: func(n network.Network, c network.Conn) {
-			server.mu.Lock()
-			server.totalConnections++
-			server.peersConnected[c.RemotePeer()] = time.Now()
-			server.mu.Unlock()
-			fmt.Printf("✅ Peer Connected: %s\n", c.RemotePeer().String())
-		},
-		DisconnectedF: func(n network.Network, c network.Conn) {
-			server.mu.Lock()
-			delete(server.peersConnected, c.RemotePeer())
-			server.mu.Unlock()
-			fmt.Printf("❌ Peer Disconnected: %s\n", c.RemotePeer().String())
-		},
-	})
-
-	return server, nil
-}
-
 func startHTTPServer(port string, server *RelayServer) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -165,8 +145,7 @@ func startHTTPServer(port string, server *RelayServer) {
 		json.NewEncoder(w).Encode(server.GetStats())
 	})
 
-	log.Printf("Internal HTTP stats running on :%s (Not reachable via Render public URL)", port)
-	// We don't log.Fatal here so if the port is busy, the relay keeps running
+	log.Printf("Internal HTTP stats running on :%s", port)
 	http.ListenAndServe(":"+port, mux)
 }
 
@@ -194,5 +173,4 @@ func (s *RelayServer) Stop() error {
 func printStartupInfo(server *RelayServer, httpPort, p2pPort string) {
 	fmt.Println("🚀 0Xnet Relay Deployment Version")
 	fmt.Println("Peer ID:", server.host.ID())
-	fmt.Printf("PUBLIC Relay Port (via Render): %s\n", p2pPort)
 }
