@@ -106,7 +106,8 @@ func NewRelayServer(ctx context.Context, p2pPort string) (*RelayServer, error) {
 		libp2p.Security(noise.ID, noise.New),
 		libp2p.EnableRelayService(
 			relay.WithResources(relay.Resources{
-				MaxReservations: 256,
+				MaxReservations: 1024,
+				MaxReservationsPerPeer: 5,
 				ReservationTTL:  time.Hour,
 			}),
 		),
