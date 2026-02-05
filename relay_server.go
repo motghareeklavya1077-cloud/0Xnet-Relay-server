@@ -50,15 +50,13 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	log.Fatal(http.ListenAndServe(":"+port, nil))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	server, err := NewRelayServer(ctx, port)
 	if err != nil {
-		fmt.Printf("Failed to create relay server: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("Failed to create relay server: %v", err)
 	}
 
 	go startHTTPServer(port, server)
